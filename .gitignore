@@ -1,0 +1,10 @@
+# Entorno virtual
+.venv/
+# Datos crudos
+data/raw/
+# Achivos que genera python automaticamente
+__pycache__/
+*.pyc
+# Sistema operativo
+thumbs.db
+.DS_Store
