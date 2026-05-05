@@ -118,18 +118,18 @@ def scrape_ofertas():
         page.wait_for_timeout(2000)
 
 
-        # contamos la cantidad de paginas
-        # try:
-        #     total_texto = page.locator(".title_page .fwB").text_content()
-        #     total_ofertas = int(total_texto.strip())
-        # except Exception:
-        #     total_ofertas = 0
+        #contamos la cantidad de paginas
+        try:
+            total_texto = page.locator(".title_page .fwB").text_content()
+            total_ofertas = int(total_texto.strip())
+        except Exception:
+            total_ofertas = 0
 
-        # if total_ofertas > 0:
-        #     ofertas_por_pagina = 20
-        #     total_paginas = (total_ofertas + ofertas_por_pagina - 1) // ofertas_por_pagina
-        # else:
-        total_paginas = 2
+        if total_ofertas > 0:
+            ofertas_por_pagina = 20
+            total_paginas = (total_ofertas + ofertas_por_pagina - 1) // ofertas_por_pagina
+        else:
+            total_paginas = 0
 
 
         datos = []
