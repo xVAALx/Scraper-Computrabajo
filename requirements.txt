@@ -1,5 +1,5 @@
-requests
-beautifulsoup4
+playwright
 pandas
 streamlit
 plotly
+regex

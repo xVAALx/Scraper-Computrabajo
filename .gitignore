@@ -2,6 +2,8 @@
 .venv/
 # Datos crudos
 data/raw/
+debug.html
+AGENTS.md
 # Achivos que genera python automaticamente
 __pycache__/
 *.pyc
