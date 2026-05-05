@@ -1,8 +1,14 @@
 # Entorno virtual
 .venv/
 # Datos crudos
+# Ignorar CSVs
+*.csv
+# Pero permitir el .gitkeep
+!/data/raw/.gitkeep
 data/raw/
+# Archivo con el contenido de la pagina
 debug.html
+# para la IA
 AGENTS.md
 # Achivos que genera python automaticamente
 __pycache__/
