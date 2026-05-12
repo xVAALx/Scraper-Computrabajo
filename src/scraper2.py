@@ -8,104 +8,69 @@ ciudad_pattern = re.compile(
     r"(?:[A-ZÁÉÍÓÚÑÜ][a-záéíóúñü]+)*)\b"
 )
 
-metadata_tokens = (
-    "hace ",
-    "postúlate",
-    "salario",
-    "contrato",
-    "jornada",
-    "experiencia",
+ubicacion_pattern = re.compile(
+    r"^(?:[A-ZÁÉÍÓÚÑÜ][a-záéíóúñü]+(?:\s+(?:de|del|la|las|los|el)\s+)?"
+    r"(?:[A-ZÁÉÍÓÚÑÜ][a-záéíóúñü]+)*)(?:,\s*.*)?$"
 )
 
+DEFAULT_OFFER = {
+    "Titulo": "Titulo no encontrado",
+    "Empresa": "Empresa no encontrada",
+    "Ubicacion": "No especificada",
+    "Salario": "No especificado",
+    "Modalidad": "No especificada",
+    "Link": "No disponible",
+}
 
 def clean_text(value):
     if not value:
         return None
     return " ".join(value.split())
 
+def defaults():
+    return DEFAULT_OFFER.copy()
 
-def extract_title(oferta):
+
+def extract_offer_data(oferta):
+    """Extrae todos los datos parseando el HTML con Python."""
     try:
-        text = oferta.locator("h2 a.js-o-link").first.text_content()
-        return clean_text(text) or "Titulo no encontrado"
+        html = oferta.inner_html()  # 1 sola llamada al navegador
     except Exception:
-        return "Titulo no encontrado"
+        return defaults()
 
+    m = re.search(r'<a class="js-o-link[^"]*"[^>]*>([^<]+)</a>', html)
+    titulo = m.group(1).strip() if m else "Titulo no encontrado"
 
-def extract_company(oferta):
-    try:
-        company = oferta.locator("a[offer-grid-article-company-url]").first.text_content()
-        company = clean_text(company)
-        if company:
-            return company
-    except Exception:
-        pass
+    m = re.search(r'<a class="js-o-link[^"]*"[^>]*href="([^"]+)"', html)
+    href = m.group(1) if m else None
+    full_link = f"https://ar.computrabajo.com{href}" if href else "No disponible"
 
-    try:
-        important = oferta.locator('p:has-text("importante empresa")')
-        if important.count() > 0:
-            return "Importante empresa del sector"
-    except Exception:
-        pass
+    m = re.search(r'a[^>]*offer-grid-article-company-url[^>]*>([^<]+)</a>', html)
+    empresa = m.group(1).strip() if m else "Empresa no encontrada"
+    if empresa == "Empresa no encontrada":
+        if 'importante empresa' in html.lower():
+            empresa = "Importante empresa del sector"
 
-    return "Empresa no encontrada"
+    m = re.search(r'<p class="fs16 fc_base mt5"[^>]*>\s*<span[^>]*>([^<]+)</span>', html)
+    ubicacion = m.group(1).strip() if m else "No especificada"
 
+    m = re.search(r'<span class="icon i_salary"[^>]*></span>([^<]+)', html)
+    salario = m.group(1).strip() if m else "No especificado"
 
-def extract_location(oferta):
-    try:
-        spans = oferta.locator("p.fs16.fc_base.mt5 span").all()
-        for span in spans:
-            text = clean_text(span.text_content())
-            if not text:
-                continue
-
-            lowered = text.lower()
-            if any(token in lowered for token in metadata_tokens):
-                continue
-
-            if ciudad_pattern.search(text):
-                return text
-    except Exception:
-        pass
-
-    return "No especificada"
-
-def extract_link(oferta):
-    """Extrae el link a la oferta completa."""
-    try:
-        link_elem = oferta.locator("h2 a.js-o-link")
-        href = link_elem.get_attribute("href")
-        if href:
-            return f"https://ar.computrabajo.com{href}"
-    except Exception:
-        pass
-    return "No disponible"
-
-def extract_modalidad(oferta):
-    """Extrae la modalidad (presencial/remoto/híbrido)."""
-    try:
-        modalidad = oferta.locator(".icon.i_home_office").first
-        if modalidad.count() == 0:
-
-            modalidad = oferta.locator(".icon.i_home").first
-        
-        if modalidad.count() > 0:
-
-            return "Remoto/Híbrido"
-    except Exception:
-        pass
-    return "No especificada"
-
-def extract_salary(oferta):
-    try:
-        salary_elem = oferta.locator(".icon.i_salary").first
-        if salary_elem.count() > 0:
-            salary = oferta.locator(".dIB.mr10").first.text_content()
-            salary = clean_text(salary)
-            return salary 
-    except Exception:
-        pass
-    return "No especificado"
+    if '.icon.i_home_office' in html or 'Remoto' in html or 'Híbrido' in html:
+        modalidad = "Remoto/Híbrido"
+    elif '.icon.i_home' in html:
+        modalidad = "Remoto"
+    else:
+        modalidad = "No especificada"
+    return {
+        "Titulo": titulo,
+        "Empresa": empresa,
+        "Ubicacion": ubicacion,
+        "Salario": salario,
+        "Modalidad": modalidad,
+        "Link": full_link,
+    }
 
 def scrape_ofertas():
     with sync_playwright() as p:
@@ -115,7 +80,7 @@ def scrape_ofertas():
 
         page.goto("https://ar.computrabajo.com/empleos-de-data")
         page.wait_for_load_state("networkidle", timeout=30000)
-        page.wait_for_timeout(2000)
+        page.wait_for_selector(".box_offer")
 
 
         #contamos la cantidad de paginas
@@ -131,36 +96,22 @@ def scrape_ofertas():
         else:
             total_paginas = 0
 
-
+#Creacion de los data frames.
         datos = []
-        for pagina in range(1,total_paginas + 1):
+        for pagina in range(1, total_paginas + 1):
             url = f"https://ar.computrabajo.com/empleos-de-data?p={pagina}"
             print(f"Pagina {pagina}...")
-            
+
             page.goto(url)
             page.wait_for_load_state("networkidle", timeout=30000)
-            page.wait_for_timeout(3000)
-            
+            page.wait_for_selector(".box_offer", timeout=10000)
+
             ofertas = page.locator(".box_offer").all()
             print(f"Encontré {len(ofertas)} ofertas\n")
-            
+
             for oferta in ofertas[:20]:
-                titulo = extract_title(oferta)
-                empresa = extract_company(oferta)
-                ubicacion = extract_location(oferta)
-                salario = extract_salary(oferta)
-                modalidad = extract_modalidad(oferta)
-                link = extract_link(oferta)
-                datos.append(
-                    {
-                        "Titulo": titulo,
-                        "Empresa": empresa,
-                        "Ubicacion": ubicacion,
-                        "Salario": salario,
-                        "Modalidad": modalidad,
-                        "Link": link,
-                    }
-                )
+                data = extract_offer_data(oferta)
+                datos.append(data)
 
         if datos:
             df = pd.DataFrame(datos)
